@@ -1,0 +1,28 @@
+# Python cache and virtual env
+__pycache__/
+**/__pycache__/
+.pytest_cache/
+**/.pytest_cache/
+.venv/
+**/.venv/
+
+# Local runtime artifacts
+*.log
+*.tmp
+*.bak
+*.swp
+*.orig
+
+# OS/editor local files
+.DS_Store
+Thumbs.db
+.vscode/
+**/.vscode/
+
+# Python bytecode
+*.py[cod]
+
+# Local project files
+.env
+.env.*
+!.env.example
