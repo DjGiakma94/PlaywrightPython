@@ -93,6 +93,18 @@ python -m pytest -q --headed
 python -m pytest -q tests/test_login.py
 ```
 
+### Confronto UI e database
+
+I test in `tests/test_database_ui.py` confrontano i valori delle classifiche
+visualizzate con le tabelle Supabase `classifica`, `giocatori` e `punti`.
+Richiedono una connection string nel file `.env`. È preferibile usare la
+connection string **Session pooler** in `DATABASE_POOLER_URL`, perché la
+connessione diretta Supabase può richiedere IPv6.
+
+```bash
+python -m pytest -q tests/test_database_ui.py
+```
+
 ## Variabili d'ambiente
 
 Le variabili supportate sono:

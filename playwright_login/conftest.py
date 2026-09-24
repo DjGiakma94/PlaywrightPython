@@ -1,7 +1,9 @@
 import pytest
 
 from config.settings import Env, get_bool
+from fixtures.api import api_request  # noqa: F401
 from fixtures.browser import browser  # noqa: F401
+from fixtures.database import db_connection  # noqa: F401
 
 
 def pytest_addoption(parser):
