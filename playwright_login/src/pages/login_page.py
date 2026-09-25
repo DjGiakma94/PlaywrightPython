@@ -11,6 +11,11 @@ class LoginPage:
         self.password_input = page.locator("#loginPassword")
         self.submit_button = page.locator("#loginButton")
         self.greeting = page.locator("span.user-greeting")
+        self.error_toast = page.locator("#toastContainer .toast.error")
+        self.insert_match_button = page.get_by_role("button", name="INSERISCI PARTITA")
+        self.primo_select = page.locator("#primo")
+        self.secondo_select = page.locator("#secondo")
+        self.terzo_select = page.locator("#terzo")
         self.monthly_ranking_button = page.get_by_role(
             "button", name="CLASSIFICA MENSILE"
         )
@@ -39,6 +44,37 @@ class LoginPage:
     def greeting_text(self) -> str:
         self.greeting.wait_for(state="visible")
         return self.greeting.inner_text().strip()
+
+    def invalid_credentials_error(self) -> str:
+        self.error_toast.wait_for(state="visible")
+        return self.error_toast.inner_text().strip()
+
+    def open_insert_match_form(self) -> None:
+        self.insert_match_button.click()
+        self.primo_select.wait_for(state="visible")
+        self.page.wait_for_function(
+            "document.querySelectorAll('#primo option').length > 1"
+        )
+
+    @staticmethod
+    def _normalise_name(name: str) -> str:
+        return " ".join(name.strip().upper().split())
+
+    def dropdown_option_names(self, select: Locator) -> set[str]:
+        return {
+            self._normalise_name(option.inner_text().strip())
+            for option in select.locator("option").all()
+            if option.inner_text().strip()
+            and self._normalise_name(option.inner_text().strip()) != "SELEZIONA GIOCATORE"
+        }
+
+    def disabled_option_names(self, select: Locator) -> set[str]:
+        return {
+            self._normalise_name(option.inner_text().strip())
+            for option in select.locator("option").all()
+            if option.get_attribute("disabled") is not None
+            and option.inner_text().strip()
+        }
 
     def open_monthly_ranking(self) -> None:
         self.monthly_ranking_button.click()

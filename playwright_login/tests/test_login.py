@@ -18,6 +18,16 @@ def test_login(browser: Browser):
     page.close()
 
 
+def test_login_with_invalid_credentials_shows_error(browser: Browser):
+    page = browser.new_page()
+    login_page = LoginPage(page)
+    login_page.open()
+    login_page.login("fake.user@example.com", "wrongpass1")
+
+    assert "Credenziali non valide" in login_page.invalid_credentials_error()
+    page.close()
+
+
 def test_login_form_is_visible(browser: Browser):
     page = browser.new_page()
     login_page = LoginPage(page)
