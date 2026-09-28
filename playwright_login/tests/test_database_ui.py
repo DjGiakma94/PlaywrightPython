@@ -1,8 +1,13 @@
 from playwright.sync_api import Browser
 
+from config.settings import Env, get_env
 from database.classifica import fetch_main_ranking
+from database.giocatori import fetch_user_profile
 from database.mesi import fetch_monthly_ranking
 from pages.login_page import LoginPage
+
+USERNAME = get_env(Env.USERNAME, "testuser@example.com")
+PASSWORD = get_env(Env.PASSWORD, "testpass")
 
 
 def _normalise_name(name: str) -> str:
@@ -14,6 +19,7 @@ def _numeric(value: str) -> int | float:
     return int(parsed) if parsed.is_integer() else parsed
 
 
+# Verify that the main ranking UI matches the database.
 def test_main_ranking_matches_database(browser: Browser, db_connection):
     page = browser.new_page()
     login_page = LoginPage(page)
@@ -37,6 +43,7 @@ def test_main_ranking_matches_database(browser: Browser, db_connection):
     page.close()
 
 
+# Verify that the monthly ranking UI matches the database.
 def test_monthly_ranking_matches_database(browser: Browser, db_connection):
     page = browser.new_page()
     login_page = LoginPage(page)
@@ -51,4 +58,29 @@ def test_monthly_ranking_matches_database(browser: Browser, db_connection):
         ui_name = next(ui_name for ui_name in ui_rows if _normalise_name(ui_name) == name)
         actual_points = [_numeric(value) for value in ui_rows[ui_name]]
         assert actual_points == expected_points
+    page.close()
+
+
+# Verify that the logged-in user's profile matches the database.
+def test_user_profile_matches_database(browser: Browser, db_connection):
+    page = browser.new_page()
+    login_page = LoginPage(page)
+    login_page.open()
+    login_page.login(USERNAME, PASSWORD)
+    login_page.open_profile()
+
+    database_profile = fetch_user_profile(db_connection, USERNAME)
+    assert database_profile is not None, f"No database profile found for {USERNAME}"
+
+    ui_profile = login_page.profile_details()
+    expected_profile = {
+        "name": database_profile["nome"],
+        "surname": database_profile["soprannome"],
+        "email": database_profile["email"],
+    }
+    assert {
+        field: value.strip().casefold() for field, value in ui_profile.items()
+    } == {
+        field: value.strip().casefold() for field, value in expected_profile.items()
+    }
     page.close()

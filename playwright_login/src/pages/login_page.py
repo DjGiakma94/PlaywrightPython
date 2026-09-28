@@ -12,6 +12,12 @@ class LoginPage:
         self.submit_button = page.locator("#loginButton")
         self.greeting = page.locator("span.user-greeting")
         self.error_toast = page.locator("#toastContainer .toast.error")
+        self.profile_button = page.locator("#btnProfile")
+        self.profile_dialog = page.locator("#profileModal")
+        self.profile_heading = self.profile_dialog.get_by_role("heading", name="Profilo Utente")
+        self.profile_name = page.locator("#nomeProfilo")
+        self.profile_surname = page.locator("#soprannomeProfilo")
+        self.profile_email = page.locator("#emailProfilo")
         self.insert_match_button = page.get_by_role("button", name="INSERISCI PARTITA")
         self.primo_select = page.locator("#primo")
         self.secondo_select = page.locator("#secondo")
@@ -19,6 +25,9 @@ class LoginPage:
         self.monthly_ranking_button = page.get_by_role(
             "button", name="CLASSIFICA MENSILE"
         )
+        self.last_match_button = page.locator("#btnLastMatch")
+        self.last_match_dialog = page.locator("#lastMatchModal")
+        self.last_match_body = page.locator("#lastMatchBody")
         self.monthly_ranking_heading = page.locator("h2:visible").filter(
             has_text="Classifica Mensile"
         )
@@ -44,6 +53,17 @@ class LoginPage:
     def greeting_text(self) -> str:
         self.greeting.wait_for(state="visible")
         return self.greeting.inner_text().strip()
+
+    def open_profile(self) -> None:
+        self.profile_button.click()
+        self.profile_heading.wait_for(state="visible")
+
+    def profile_details(self) -> dict[str, str]:
+        return {
+            "name": self.profile_name.inner_text().strip(),
+            "surname": self.profile_surname.inner_text().strip(),
+            "email": self.profile_email.inner_text().strip(),
+        }
 
     def invalid_credentials_error(self) -> str:
         self.error_toast.wait_for(state="visible")
@@ -80,6 +100,27 @@ class LoginPage:
         self.monthly_ranking_button.click()
         self.monthly_ranking_heading.wait_for(state="visible")
         self.monthly_ranking_table.wait_for(state="visible")
+
+    def open_last_match(self) -> None:
+        self.last_match_button.click()
+        self.last_match_body.wait_for(state="visible")
+        self.page.wait_for_function(
+            "!document.querySelector('#lastMatchBody').innerText.includes('Caricamento')"
+        )
+
+    def last_match_player_names(self) -> set[str]:
+        medals = ("🥇", "🥈", "🥉")
+        return {
+            self._normalise_name(
+                next(
+                    (text.replace(medal, "") for medal in medals if medal in text),
+                    text,
+                )
+            )
+            for paragraph in self.last_match_body.locator("p").all()
+            for text in [paragraph.inner_text().strip()]
+            if text
+        }
 
     def ranking_player_names(self, table: Locator | None = None) -> set[str]:
         ranking_table = table or self.visible_ranking_table

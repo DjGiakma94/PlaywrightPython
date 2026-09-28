@@ -8,6 +8,7 @@ USERNAME = get_env(Env.USERNAME, "testuser@example.com")
 PASSWORD = get_env(Env.PASSWORD, "testpass")
 
 
+# Verify that the match form lists every player from the main ranking.
 def test_insert_new_match_dropdown_contains_all_main_ranking_players(
     browser: Browser,
     db_connection,
@@ -31,6 +32,7 @@ def test_insert_new_match_dropdown_contains_all_main_ranking_players(
     page.close()
 
 
+# Verify that players selected in the first two positions cannot be selected third.
 def test_insert_new_match_disables_selected_players_in_third_position(
     browser: Browser,
 ):
@@ -62,4 +64,24 @@ def test_insert_new_match_disables_selected_players_in_third_position(
         is not None
     )
 
+    page.close()
+
+
+# Verify that all players in the last match appear in the main ranking.
+def test_last_match_players_are_in_main_ranking(browser: Browser, db_connection):
+    page = browser.new_page()
+    login_page = LoginPage(page)
+    login_page.open()
+    main_ranking_players = {
+        login_page._normalise_name(name) for name in fetch_main_ranking(db_connection)
+    }
+
+    login_page.open_last_match()
+    last_match_players = login_page.last_match_player_names()
+
+    assert last_match_players, "No players found in the last match modal"
+    assert last_match_players.issubset(main_ranking_players), (
+        "Last match players are missing from the main ranking: "
+        f"{sorted(last_match_players - main_ranking_players)}"
+    )
     page.close()

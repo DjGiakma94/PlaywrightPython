@@ -1,5 +1,7 @@
 from typing import Any
 
+from database.query_logging import execute_logged
+
 
 DDL = """
 CREATE TABLE IF NOT EXISTS public.giocatori (
@@ -25,7 +27,8 @@ PLAYER_COLUMNS = (
 
 
 def fetch_players(connection) -> list[dict[str, Any]]:
-    rows = connection.execute(
+    rows = execute_logged(
+        connection,
         """
         SELECT id, nome, soprannome, note, user_id, role
         FROM giocatori
@@ -33,3 +36,17 @@ def fetch_players(connection) -> list[dict[str, Any]]:
         """
     ).fetchall()
     return [dict(row) for row in rows]
+
+
+def fetch_user_profile(connection, email: str) -> dict[str, Any] | None:
+    row = execute_logged(
+        connection,
+        """
+        SELECT g.nome, g.soprannome, u.email
+        FROM public.giocatori AS g
+        JOIN auth.users AS u ON u.id = g.user_id
+        WHERE lower(u.email) = lower(%s)
+        """,
+        (email,),
+    ).fetchone()
+    return dict(row) if row else None

@@ -1,5 +1,7 @@
 from typing import Any
 
+from database.query_logging import execute_logged
+
 
 DDL = """
 CREATE TABLE IF NOT EXISTS public.classifica (
@@ -27,7 +29,7 @@ ORDER BY g.nome
 
 
 def fetch_main_ranking(connection) -> dict[str, dict[str, Any]]:
-    rows = connection.execute(MAIN_RANKING_QUERY).fetchall()
+    rows = execute_logged(connection, MAIN_RANKING_QUERY).fetchall()
     return {
         row["nome"].strip().upper(): {
             "partite": row["partite_giocate"],

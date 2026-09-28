@@ -1,5 +1,7 @@
 from typing import Any
 
+from database.query_logging import execute_logged
+
 
 DDL = """
 CREATE TABLE IF NOT EXISTS public.mesi (
@@ -48,7 +50,7 @@ ORDER BY g.nome
 
 
 def fetch_monthly_ranking(connection) -> dict[str, list[Any]]:
-    rows = connection.execute(MONTHLY_RANKING_QUERY).fetchall()
+    rows = execute_logged(connection, MONTHLY_RANKING_QUERY).fetchall()
     return {
         row["nome"].strip().upper(): [
             row[column] if row[column] is not None else 0

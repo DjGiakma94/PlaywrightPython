@@ -17,6 +17,7 @@ REQUIRED_PLAYER_FIELDS = {
 }
 
 
+# Verify that the supported GET routes respond with an expected status.
 @pytest.mark.parametrize(
     "path",
     [
@@ -41,6 +42,7 @@ def test_button_get_routes_are_reachable(
     )
 
 
+# Verify that rankings include unique players with all required fields.
 def test_get_rankings_returns_players_with_expected_fields(
     api_request: APIRequestContext,
 ):
@@ -54,6 +56,7 @@ def test_get_rankings_returns_players_with_expected_fields(
     assert len({player["id_player"] for player in players}) == len(players)
 
 
+# Verify that refreshing monthly points succeeds.
 def test_refresh_monthly_points_returns_success(api_request: APIRequestContext):
     response = api_request.get("/api/refreshMonthlyPoints")
 

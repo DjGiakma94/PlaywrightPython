@@ -3,6 +3,7 @@ from playwright.sync_api import Browser
 from pages.login_page import LoginPage
 
 
+# Verify that the monthly ranking button is visible.
 def test_monthly_ranking_button_is_visible(browser: Browser):
     page = browser.new_page()
     login_page = LoginPage(page)
@@ -12,6 +13,7 @@ def test_monthly_ranking_button_is_visible(browser: Browser):
     page.close()
 
 
+# Verify that the monthly ranking includes every player from the main ranking.
 def test_monthly_ranking_contains_main_ranking_players(browser: Browser):
     page = browser.new_page()
     login_page = LoginPage(page)
