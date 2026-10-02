@@ -24,6 +24,7 @@ _load_dotenv(os.path.join(os.path.dirname(os.path.dirname(__file__)), ".env"))
 
 
 class Env(Enum):
+    BASE_URL = "PLAYWRIGHT_BASE_URL"
     USERNAME = "PLAYWRIGHT_USERNAME"
     PASSWORD = "PLAYWRIGHT_PASSWORD"
     DISPLAY_NAME = "PLAYWRIGHT_DISPLAY_NAME"
@@ -34,6 +35,10 @@ class Env(Enum):
 
 def get_env(name: Env, default=None):
     return os.getenv(name.value, default)
+
+
+def get_base_url() -> str:
+    return get_env(Env.BASE_URL, "https://dart-blu.onrender.com").rstrip("/")
 
 
 def get_bool(name: Env, default: bool = True) -> bool:

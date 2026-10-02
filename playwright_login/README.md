@@ -50,6 +50,7 @@ python -m pip install -r .\playwright_login\requirements.txt
 Creare `playwright_login/.env` in locale. Il file non deve essere committato.
 
 ```env
+PLAYWRIGHT_BASE_URL=https://dart-blu.onrender.com
 PLAYWRIGHT_USERNAME=testuser@example.com
 PLAYWRIGHT_PASSWORD=testpass
 PLAYWRIGHT_DISPLAY_NAME=DAVIDE
@@ -62,6 +63,7 @@ DATABASE_POOLER_URL=postgresql://postgres.PROJECT_REF:PASSWORD@aws-0-REGION.pool
 
 | Variabile | Uso | Obbligatoria |
 | --- | --- | --- |
+| `PLAYWRIGHT_BASE_URL` | URL base dell'applicazione | No, usa Dart BU Blue |
 | `PLAYWRIGHT_USERNAME` | Utente usato dal test di login | No, ha un default |
 | `PLAYWRIGHT_PASSWORD` | Password usata dal test di login | No, ha un default |
 | `PLAYWRIGHT_DISPLAY_NAME` | Nome atteso dopo il login | No, ha un default |
@@ -105,6 +107,7 @@ playwright_login/
 ├── tests/
 │   ├── test_login.py           # Test login e form
 │   ├── test_api.py             # Test degli endpoint HTTP
+│   ├── test_dartblue_exercises.py # Nove esercizi Playwright su Dartblue
 │   ├── test_monthly_ranking.py # Test UI della classifica mensile
 │   └── test_database_ui.py     # Confronti UI e database
 ├── conftest.py                 # Registrazione fixture pytest
@@ -119,8 +122,8 @@ playwright_login/
 File: `tests/test_api.py`
 
 La fixture `api_request` crea un `APIRequestContext` Playwright con base URL
-`https://dart-blu.onrender.com`. I test eseguono richieste HTTP indipendenti
-dal browser:
+configurabile tramite `PLAYWRIGHT_BASE_URL` (default Dart BU Blue). I test
+eseguono richieste HTTP indipendenti dal browser:
 
 1. `GET /api/getRankings` deve rispondere con status 2xx.
 2. Il body deve essere una lista non vuota di giocatori.
@@ -148,6 +151,33 @@ Il Page Object contiene:
 
 I test verificano il comportamento osservabile dell'applicazione, senza
 usare selettori CSS interni non necessari.
+
+### Esercizi Playwright
+
+File: `tests/test_dartblue_exercises.py`.
+
+Il modulo contiene un test per ciascun esercizio, identificato dal commento
+`ESERCIZIO 1` fino a `ESERCIZIO 9`. I locator e le azioni UI sono nel Page
+Object `src/pages/login_page.py`. Le classifiche, lo storico e la rubrica
+vengono letti dal servizio reale; la signup è simulata per non creare account.
+
+L'esercizio 9 registra una partita reale usando esclusivamente `TEST1`,
+`TEST2` e `TEST3`. Nel `finally` il test rimuove da `LogPartite` soltanto la
+riga creata dopo il baseline e con quegli esatti partecipanti, poi chiama
+`clearTestPlayers` e verifica il ripristino delle statistiche e dell'ultimo
+risultato. Questo esercizio richiede `DATABASE_POOLER_URL` o `DATABASE_URL`
+per il cleanup puntuale del log.
+
+L'API pubblica attualmente espone la lettura degli utenti tramite
+`GET /api/getAllUsers`, ma non operazioni CRUD per creare, modificare o
+cancellare giocatori. L'esercizio 1 verifica quindi la rubrica in sola lettura;
+il CRUD completo dei record giocatore richiederebbe endpoint applicativi dedicati.
+
+Esecuzione mirata:
+
+```powershell
+python -m pytest -q tests/test_dartblue_exercises.py
+```
 
 ### Test UI-database
 

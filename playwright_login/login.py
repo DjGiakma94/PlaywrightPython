@@ -1,8 +1,8 @@
 from playwright.sync_api import sync_playwright
 
-from config.settings import Env, get_bool, get_env, get_int
+from config.settings import Env, get_base_url, get_bool, get_env, get_int
 
-URL = "https://dart-blu.onrender.com/login"
+URL = f"{get_base_url()}/login"
 
 USERNAME = get_env(Env.USERNAME, "testuser")
 PASSWORD = get_env(Env.PASSWORD, "testpass")
