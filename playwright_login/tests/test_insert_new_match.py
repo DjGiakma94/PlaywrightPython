@@ -2,10 +2,11 @@ from playwright.sync_api import Browser
 
 from config.settings import Env, get_env
 from database.classifica import fetch_main_ranking
+from data.users import DEFAULT_USER, MATCH_PLAYERS_TO_SELECT
 from pages.login_page import LoginPage
 
-USERNAME = get_env(Env.USERNAME, "testuser@example.com")
-PASSWORD = get_env(Env.PASSWORD, "testpass")
+USERNAME = get_env(Env.USERNAME, DEFAULT_USER["username"])
+PASSWORD = get_env(Env.PASSWORD, DEFAULT_USER["password"])
 
 
 # Verify that the match form lists every player from the main ranking.
@@ -42,8 +43,7 @@ def test_insert_new_match_disables_selected_players_in_third_position(
     login_page.login(USERNAME, PASSWORD)
     login_page.open_insert_match_form()
 
-    first_player = "DAVIDE"
-    second_player = "VALERIO"
+    first_player, second_player = MATCH_PLAYERS_TO_SELECT
 
     login_page.primo_select.select_option(label=first_player)
     login_page.secondo_select.select_option(label=second_player)

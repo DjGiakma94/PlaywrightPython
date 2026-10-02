@@ -1,12 +1,13 @@
 from playwright.sync_api import Browser
 
 from config.settings import Env, get_env
+from data.users import DEFAULT_USER, INVALID_USER
 from pages.login_page import LoginPage
 
-USERNAME = get_env(Env.USERNAME, "testuser@example.com")
-PASSWORD = get_env(Env.PASSWORD, "testpass")
-DISPLAY_NAME = get_env(Env.DISPLAY_NAME, "DAVIDE")
-DISPLAY_SURNAME = get_env(Env.DISPLAY_SURNAME, "LAMENTINO")
+USERNAME = get_env(Env.USERNAME, DEFAULT_USER["username"])
+PASSWORD = get_env(Env.PASSWORD, DEFAULT_USER["password"])
+DISPLAY_NAME = get_env(Env.DISPLAY_NAME, DEFAULT_USER["display_name"])
+DISPLAY_SURNAME = get_env(Env.DISPLAY_SURNAME, DEFAULT_USER["display_surname"])
 
 
 # Verify that valid credentials log the user in and show the expected greeting.
@@ -25,7 +26,7 @@ def test_login_with_invalid_credentials_shows_error(browser: Browser):
     page = browser.new_page()
     login_page = LoginPage(page)
     login_page.open()
-    login_page.login("fake.user@example.com", "wrongpass1")
+    login_page.login(INVALID_USER["username"], INVALID_USER["password"])
 
     assert "Credenziali non valide" in login_page.invalid_credentials_error()
     page.close()

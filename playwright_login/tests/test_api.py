@@ -1,3 +1,5 @@
+from http import HTTPStatus
+
 import pytest
 from playwright.sync_api import APIRequestContext
 
@@ -36,7 +38,11 @@ def test_button_get_routes_are_reachable(
 ):
     response = api_request.get(path)
 
-    assert response.status in {200, 204, 404}, (
+    assert response.status in {
+        HTTPStatus.OK,
+        HTTPStatus.NO_CONTENT,
+        HTTPStatus.NOT_FOUND,
+    }, (
         f"Unexpected status for GET {path}: {response.status} "
         f"body={response.text()[:200]}"
     )

@@ -4,10 +4,11 @@ from config.settings import Env, get_env
 from database.classifica import fetch_main_ranking
 from database.giocatori import fetch_user_profile
 from database.mesi import fetch_monthly_ranking
+from data.users import DEFAULT_USER
 from pages.login_page import LoginPage
 
-USERNAME = get_env(Env.USERNAME, "testuser@example.com")
-PASSWORD = get_env(Env.PASSWORD, "testpass")
+USERNAME = get_env(Env.USERNAME, DEFAULT_USER["username"])
+PASSWORD = get_env(Env.PASSWORD, DEFAULT_USER["password"])
 
 
 def _normalise_name(name: str) -> str:

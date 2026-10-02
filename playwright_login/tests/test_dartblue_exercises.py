@@ -1,17 +1,199 @@
 import json
+from http import HTTPStatus
 
 import pytest
 from playwright.sync_api import APIRequestContext, Page
 
 from config.settings import Env, get_base_url, get_env
+from data.users import DEFAULT_USER, INVALID_USER, SIGNUP_USER, TEST_PLAYER_NAMES
 from pages.login_page import LoginPage
 
-USERNAME = get_env(Env.USERNAME, "testuser@example.com")
-PASSWORD = get_env(Env.PASSWORD, "testpass")
-TEST_PLAYER_NAMES = ("TEST1", "TEST2", "TEST3")
+USERNAME = get_env(Env.USERNAME, DEFAULT_USER["username"])
+PASSWORD = get_env(Env.PASSWORD, DEFAULT_USER["password"])
 
 
-def _fulfill_json(route, payload: dict | list, status: int = 200) -> None:
+# EXERCISE 1: verify the Dartblue player directory without modifying data.
+def test_exercise_1_players_directory_is_readable(api_request: APIRequestContext):
+    response = api_request.get("/api/getAllUsers")
+
+    assert response.ok
+    body = response.json()
+    players = body.get("data")
+    assert body.get("statusCode") == HTTPStatus.OK
+    assert isinstance(players, list) and players
+    assert all({"id", "nome", "soprannome", "role"} <= player.keys() for player in players)
+    assert len({player["id"] for player in players}) == len(players)
+    listed_names = {player["nome"].strip().upper() for player in players}
+    assert set(TEST_PLAYER_NAMES) <= listed_names
+
+
+# EXERCISE 2: open the main dashboard sections.
+def test_exercise_2_dashboard_sections_are_clickable(page: Page):
+    page.route("**/api/refreshMonthlyPoints", lambda route: _fulfill_json(route, {"message": "OK"}))
+    dartblue_page = _open_home(page)
+
+    dartblue_page.open_monthly_ranking()
+    dartblue_page.close_monthly_ranking()
+
+    dartblue_page.open_history()
+    dartblue_page.close_history()
+
+    dartblue_page.open_last_match()
+    assert dartblue_page.last_match_dialog.is_visible()
+
+
+# EXERCISE 3: select the players for the three match positions.
+def test_exercise_3_match_form_selects_distinct_players(page: Page):
+    dartblue_page = _open_home(page)
+    _login(dartblue_page)
+
+    dartblue_page.open_insert_match_form()
+    available_players = {
+        name.strip().upper(): name
+        for name in dartblue_page.available_match_player_names()
+    }
+    assert set(TEST_PLAYER_NAMES) <= available_players.keys()
+    selected_players = [available_players[name] for name in TEST_PLAYER_NAMES]
+    dartblue_page.select_match_positions(*selected_players)
+
+    assert dartblue_page.match_position_values() == selected_players
+
+
+# EXERCISE 4: sort the ranking by player name in both directions.
+def test_exercise_4_ranking_can_be_sorted_by_player_name(page: Page):
+    dartblue_page = _open_home(page)
+    initial_names = dartblue_page.ranking_names_in_display_order()
+
+    dartblue_page.sort_ranking_by_player_name()
+    assert dartblue_page.ranking_names_in_display_order() == sorted(
+        initial_names, key=str.casefold
+    )
+
+    dartblue_page.sort_ranking_by_player_name()
+    assert dartblue_page.ranking_names_in_display_order() == sorted(
+        initial_names, key=str.casefold, reverse=True
+    )
+
+
+# EXERCISE 5: display the players from the latest match.
+def test_exercise_5_last_match_shows_podium(page: Page):
+    dartblue_page = _open_home(page)
+
+    dartblue_page.open_last_match()
+    assert dartblue_page.last_match_dialog.is_visible()
+    assert "Caricamento" not in dartblue_page.last_match_body.inner_text()
+
+
+# EXERCISE 6: verify signup without creating an account on the live server.
+def test_exercise_6_signup_success_is_shown(page: Page):
+    page.route(
+        "**/api/signup",
+        lambda route: _fulfill_json(route, {"message": "Account creato con successo"}),
+    )
+    dartblue_page = _open_home(page)
+
+    dartblue_page.open_signup_form()
+    message = dartblue_page.sign_up(**SIGNUP_USER)
+    assert "Account creato con successo" in message
+
+
+# EXERCISE 7: verify that the monthly ranking loads.
+def test_exercise_7_monthly_ranking_displays_players(
+    page: Page,
+):
+    page.route("**/api/refreshMonthlyPoints", lambda route: _fulfill_json(route, {"message": "OK"}))
+    real_user_names = {
+        user["nome"].strip().casefold()
+        for user in _browser_api_get(page, "/api/getAllUsers")["data"]
+        if user.get("nome")
+    }
+    dartblue_page = _open_home(page)
+
+    dartblue_page.open_monthly_ranking()
+    monthly_text = dartblue_page.monthly_ranking_text()
+    assert any(name in monthly_text.casefold() for name in real_user_names)
+
+
+# EXERCISE 8: verify that invalid credentials display an error.
+def test_exercise_8_invalid_login_shows_error(page: Page):
+    dartblue_page = _open_home(page)
+    dartblue_page.login(INVALID_USER["username"], INVALID_USER["password"])
+
+    assert "Credenziali non valide" in dartblue_page.invalid_credentials_error()
+
+
+# EXERCISE 9: register a real match with TEST players and restore the initial data.
+def test_exercise_9_match_submission_resets_test_players(page: Page, db_connection):
+    dartblue_page = _open_home(page)
+    token = _login(dartblue_page)
+    _clear_test_players(page, token)
+    baseline_match_log_id = _latest_match_log_id(db_connection)
+    baseline_last_match = _browser_api_get(page, "/api/getLastMatch")
+    test_user_ids = {
+        user["nome"].strip().upper(): user["id"]
+        for user in _browser_api_get(page, "/api/getAllUsers")["data"]
+        if user.get("nome")
+    }
+    selected_player_ids = [test_user_ids[name] for name in TEST_PLAYER_NAMES]
+
+    try:
+        dartblue_page.open_insert_match_form()
+        available_players = {
+            name.strip().upper(): name
+            for name in dartblue_page.available_match_player_names()
+        }
+        assert set(TEST_PLAYER_NAMES) <= available_players.keys()
+        selected_players = [available_players[name] for name in TEST_PLAYER_NAMES]
+        dartblue_page.select_match_positions(*selected_players)
+        dartblue_page.set_match_participants(selected_players)
+
+        with page.expect_request(
+            lambda request: request.url.endswith("/api/addNewGame")
+            and request.method == "POST"
+        ) as submitted_request:
+            with page.expect_response(
+                lambda response: response.url.endswith("/api/addNewGame")
+                and response.request.method == "POST"
+            ) as submitted_response:
+                assert dartblue_page.submit_match()
+
+        assert submitted_response.value.ok
+        payload = submitted_request.value.post_data_json
+        assert [payload["primo"], payload["secondo"], payload["terzo"]] == [
+            name.upper() for name in selected_players
+        ]
+        assert payload["tuttiGiocatori"] == [name.upper() for name in selected_players]
+
+        updated_players = _read_test_players(page)
+        assert all(
+            updated_players[name]["partiteGiocate"] == 1
+            for name in TEST_PLAYER_NAMES
+        )
+    finally:
+        try:
+            _delete_new_test_match_log(
+                db_connection,
+                baseline_match_log_id,
+                selected_player_ids,
+            )
+        finally:
+            _clear_test_players(page, token)
+
+    reset_players = _read_test_players(page)
+    for name in TEST_PLAYER_NAMES:
+        assert reset_players[name]["partiteGiocate"] == 0
+        assert reset_players[name]["primo"] == 0
+        assert reset_players[name]["secondo"] == 0
+        assert reset_players[name]["terzo"] == 0
+    assert _browser_api_get(page, "/api/getLastMatch") == baseline_last_match
+    assert _latest_match_log_id(db_connection) == baseline_match_log_id
+
+
+def _fulfill_json(
+    route,
+    payload: dict | list,
+    status: HTTPStatus = HTTPStatus.OK,
+) -> None:
     route.fulfill(
         status=status,
         content_type="application/json",
@@ -101,182 +283,3 @@ def page(browser):
     test_page = browser.new_page()
     yield test_page
     test_page.close()
-
-
-# ESERCIZIO 1: verifica in sola lettura la rubrica giocatori esposta da Dartblue.
-def test_exercise_1_players_directory_is_readable(api_request: APIRequestContext):
-    response = api_request.get("/api/getAllUsers")
-
-    assert response.ok
-    body = response.json()
-    players = body.get("data")
-    assert body.get("statusCode") == 200
-    assert isinstance(players, list) and players
-    assert all({"id", "nome", "soprannome", "role"} <= player.keys() for player in players)
-    assert len({player["id"] for player in players}) == len(players)
-    listed_names = {player["nome"].strip().upper() for player in players}
-    assert set(TEST_PLAYER_NAMES) <= listed_names
-
-
-# ESERCIZIO 2: apre le sezioni principali della dashboard.
-def test_exercise_2_dashboard_sections_are_clickable(page: Page):
-    page.route("**/api/refreshMonthlyPoints", lambda route: _fulfill_json(route, {"message": "OK"}))
-    dartblue_page = _open_home(page)
-
-    dartblue_page.open_monthly_ranking()
-    dartblue_page.close_monthly_ranking()
-
-    dartblue_page.open_history()
-    dartblue_page.close_history()
-
-    dartblue_page.open_last_match()
-    assert dartblue_page.last_match_dialog.is_visible()
-
-
-# ESERCIZIO 3: seleziona i giocatori nei tre piazzamenti di una partita.
-def test_exercise_3_match_form_selects_distinct_players(page: Page):
-    dartblue_page = _open_home(page)
-    _login(dartblue_page)
-
-    dartblue_page.open_insert_match_form()
-    available_players = {
-        name.strip().upper(): name
-        for name in dartblue_page.available_match_player_names()
-    }
-    assert set(TEST_PLAYER_NAMES) <= available_players.keys()
-    selected_players = [available_players[name] for name in TEST_PLAYER_NAMES]
-    dartblue_page.select_match_positions(*selected_players)
-
-    assert dartblue_page.match_position_values() == selected_players
-
-
-# ESERCIZIO 4: ordina la classifica per nome in entrambi i versi.
-def test_exercise_4_ranking_can_be_sorted_by_player_name(page: Page):
-    dartblue_page = _open_home(page)
-    initial_names = dartblue_page.ranking_names_in_display_order()
-
-    dartblue_page.sort_ranking_by_player_name()
-    assert dartblue_page.ranking_names_in_display_order() == sorted(
-        initial_names, key=str.casefold
-    )
-
-    dartblue_page.sort_ranking_by_player_name()
-    assert dartblue_page.ranking_names_in_display_order() == sorted(
-        initial_names, key=str.casefold, reverse=True
-    )
-
-
-# ESERCIZIO 5: mostra i giocatori dell'ultima partita.
-def test_exercise_5_last_match_shows_podium(page: Page):
-    dartblue_page = _open_home(page)
-
-    dartblue_page.open_last_match()
-    assert dartblue_page.last_match_dialog.is_visible()
-    assert "Caricamento" not in dartblue_page.last_match_body.inner_text()
-
-
-# ESERCIZIO 6: verifica la registrazione senza creare un account sul server live.
-def test_exercise_6_signup_success_is_shown(page: Page):
-    page.route(
-        "**/api/signup",
-        lambda route: _fulfill_json(route, {"message": "Account creato con successo"}),
-    )
-    dartblue_page = _open_home(page)
-
-    dartblue_page.open_signup_form()
-    message = dartblue_page.sign_up(
-        "TEST1", "TEST1", "test1.signup@example.invalid", "TestPassword123!"
-    )
-    assert "Account creato con successo" in message
-
-
-# ESERCIZIO 7: verifica che la classifica mensile venga caricata.
-def test_exercise_7_monthly_ranking_displays_players(
-    page: Page,
-):
-    page.route("**/api/refreshMonthlyPoints", lambda route: _fulfill_json(route, {"message": "OK"}))
-    real_user_names = {
-        user["nome"].strip().casefold()
-        for user in _browser_api_get(page, "/api/getAllUsers")["data"]
-        if user.get("nome")
-    }
-    dartblue_page = _open_home(page)
-
-    dartblue_page.open_monthly_ranking()
-    monthly_text = dartblue_page.monthly_ranking_text()
-    assert any(name in monthly_text.casefold() for name in real_user_names)
-
-
-# ESERCIZIO 8: mostra un errore con credenziali inesistenti.
-def test_exercise_8_invalid_login_shows_error(page: Page):
-    dartblue_page = _open_home(page)
-    dartblue_page.login("inesistente@example.test", "wrongpass1")
-
-    assert "Credenziali non valide" in dartblue_page.invalid_credentials_error()
-
-
-# ESERCIZIO 9: registra una partita reale fra i TEST e ripristina i dati iniziali.
-def test_exercise_9_match_submission_resets_test_players(page: Page, db_connection):
-    dartblue_page = _open_home(page)
-    token = _login(dartblue_page)
-    _clear_test_players(page, token)
-    baseline_match_log_id = _latest_match_log_id(db_connection)
-    baseline_last_match = _browser_api_get(page, "/api/getLastMatch")
-    test_user_ids = {
-        user["nome"].strip().upper(): user["id"]
-        for user in _browser_api_get(page, "/api/getAllUsers")["data"]
-        if user.get("nome")
-    }
-    selected_player_ids = [test_user_ids[name] for name in TEST_PLAYER_NAMES]
-
-    try:
-        dartblue_page.open_insert_match_form()
-        available_players = {
-            name.strip().upper(): name
-            for name in dartblue_page.available_match_player_names()
-        }
-        assert set(TEST_PLAYER_NAMES) <= available_players.keys()
-        selected_players = [available_players[name] for name in TEST_PLAYER_NAMES]
-        dartblue_page.select_match_positions(*selected_players)
-        dartblue_page.set_match_participants(selected_players)
-
-        with page.expect_request(
-            lambda request: request.url.endswith("/api/addNewGame")
-            and request.method == "POST"
-        ) as submitted_request:
-            with page.expect_response(
-                lambda response: response.url.endswith("/api/addNewGame")
-                and response.request.method == "POST"
-            ) as submitted_response:
-                assert dartblue_page.submit_match()
-
-        assert submitted_response.value.ok
-        payload = submitted_request.value.post_data_json
-        assert [payload["primo"], payload["secondo"], payload["terzo"]] == [
-            name.upper() for name in selected_players
-        ]
-        assert payload["tuttiGiocatori"] == [name.upper() for name in selected_players]
-
-        updated_players = _read_test_players(page)
-        assert all(
-            updated_players[name]["partiteGiocate"] == 1
-            for name in TEST_PLAYER_NAMES
-        )
-    finally:
-        try:
-            _delete_new_test_match_log(
-                db_connection,
-                baseline_match_log_id,
-                selected_player_ids,
-            )
-        finally:
-            _clear_test_players(page, token)
-
-    reset_players = _read_test_players(page)
-    for name in TEST_PLAYER_NAMES:
-        assert reset_players[name]["partiteGiocate"] == 0
-        assert reset_players[name]["primo"] == 0
-        assert reset_players[name]["secondo"] == 0
-        assert reset_players[name]["terzo"] == 0
-    assert _browser_api_get(page, "/api/getLastMatch") == baseline_last_match
-    assert _latest_match_log_id(db_connection) == baseline_match_log_id
